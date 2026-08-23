@@ -1,115 +1,107 @@
-# RUNSY — Bilateral Wristband Running Form Coach
+# RUNSY 🏃
+**Dual Wristband Running Form Coach**
 
-> **Status: 🔨 In Progress — Phase 1 (Hardware & Firmware)**
-
-A dual-wristband embedded system that detects bilateral arm swing asymmetry in real time and delivers haptic feedback to correct running form. Built as an EE portfolio project targeting FAE/Technical PM roles at sensor and wearables companies.
-
----
-
-## The Problem
-
-34% of recreational runners exhibit measurable arm swing asymmetry, which is linked to elevated injury risk and wasted metabolic energy. No consumer wearable currently detects this in real time and gives immediate, personalized corrective feedback — they only show metrics after the fact.
-
-RUNSY solves this: when your arms fall out of sync, the wristband on the offending side vibrates immediately, telling you exactly which arm needs correction.
+Detects bilateral arm swing asymmetry in real time using IMU sensors and provides haptic + LED feedback to correct running form.
 
 ---
 
-## How It Works
+## Problem
+Most runners develop asymmetric arm swing without knowing it — one arm crosses the body, one swings too wide. This wastes energy and increases injury risk. No affordable wearable device targets this specific issue.
 
-Two wristbands communicate wirelessly during a run. Each has an IMU that tracks arm swing amplitude, timing, and cross-body deviation. A comparison algorithm detects asymmetry relative to your personal baseline — not a generic population average — and triggers haptic + LED feedback on the weaker wrist in real time.
-
-After the run, a companion app shows your symmetry score, form timeline, and fatigue curve.
+## Solution
+Two wristbands (ESP32-C5 + MPU-6050) communicate wirelessly via ESP-NOW. Each measures arm swing magnitude. If the difference exceeds a threshold, an LED and vibration motor alert the runner in real time.
 
 ---
 
-## Hardware
+## Hardware BOM
 
-| Component | Role |
-|---|---|
-| XIAO ESP32-C5 (×2) | Microcontroller + wireless |
-| MPU-6050 IMU (×2) | Accelerometer + gyroscope |
-| Coin vibration motor 1027 (×2) | Haptic feedback |
-| WS2812B NeoPixel LED (×2) | Visual status indicator |
-| 2N2222 NPN transistor (×2) | Motor driver circuit |
-| LiPo battery (×2) | Untethered operation (Phase 3) |
-
-**Total BOM cost: ~NT$500–700 for Phase 1**
+| Component | Qty | Est. Cost |
+|---|---|---|
+| Seeed XIAO ESP32-C5 | 2 | $8 each |
+| GY-521 MPU-6050 IMU | 2 | $3 each |
+| RGB LED (common cathode) | 2 | $0.50 each |
+| Vibration Motor (ERM) | 2 | $2 each |
+| 330Ω Resistors | 6 | $0.10 each |
+| LiPo Battery 3.7V 500mAh | 2 | $8 each |
+| Breadboard + Wires | — | $5 |
 
 ---
 
 ## Build Phases
 
-### ✅ Phase 1 — Hardware & Firmware (Weeks 1–5)
-- [ ] IMU reading + NeoPixel status indicator
-- [ ] Personal baseline calibration routine
-- [ ] ESP-NOW wireless link between two boards
-- [ ] Bilateral symmetry comparison algorithm
-- [ ] Haptic feedback on asymmetry detection
-- [ ] Integration test + demo video
+### Phase 1 — Hardware + Firmware (Weeks 1–5)
+- [x] **Week 1**: Single IMU reading + RGB LED status indicator ✅
+  - MPU-6050 reads accelerometer via I2C (`Wire.begin()` default pins)
+  - LED: green = still, blue = moving, red = shaking
+  - Thresholds tuned to actual sensor output (1.30 / 1.70 g)
+- [ ] **Week 2**: Add gyroscope data + arm swing pattern detection
+- [ ] **Week 3**: Second board + ESP-NOW bilateral communication
+- [ ] **Week 4**: Symmetry algorithm (`|leftMag - rightMag| > threshold`)
+- [ ] **Week 5**: Vibration motor haptic feedback
 
-### 🔲 Phase 2 — BLE + Companion App (Weeks 6–10)
-- [ ] BLE data logging during session
-- [ ] React Native app — live data display
-- [ ] Post-run symmetry score + form timeline
-- [ ] Fatigue curve + session comparison
+### Phase 2 — BLE + Mobile App (Weeks 6–10)
+- [ ] BLE data streaming to phone
+- [ ] React Native companion app
+- [ ] Session logging + symmetry score display
 
-### 🔲 Phase 3 — Polish & Enclosure (Weeks 11–16)
-- [ ] Adaptive personal thresholds (learns across sessions)
-- [ ] Session history + improvement tracking
-- [ ] 3D printed wristband enclosure
-- [ ] LiPo battery integration
+### Phase 3 — Polish (Weeks 11–16)
+- [ ] 3D printed enclosure
+- [ ] Battery management + charging circuit
+- [ ] User testing with runners
 
 ---
 
-## Key Technical Concepts
+## Symmetry Detection Formula
 
-**Symmetry detection:** `ratio = min(leftAmp, rightAmp) / max(leftAmp, rightAmp)` — flag if below personal threshold (default 0.75, adapts over time)
+```
+asymmetry = |leftMagnitude - rightMagnitude|
 
-**Wireless protocol:** ESP-NOW for Phase 1 (peer-to-peer, <10ms latency, no router needed) → BLE for Phase 2 (phone connectivity)
+if asymmetry < 0.2  → green  (good form)
+if asymmetry < 0.5  → blue   (slight asymmetry)
+if asymmetry > 0.5  → red    (correct your form)
+```
 
-**Personalization:** First 2–3 runs establish YOUR baseline symmetric swing. Asymmetry is detected relative to your pattern, not a population average — scientifically justified since optimal form varies by individual.
+Where magnitude = √(ax² + ay² + az²) in g-force units.
 
-**IMU axes used:**
-- Y-axis accelerometer → swing amplitude (forward/back)
-- X-axis accelerometer → cross-body deviation (lateral waste)
-- Z-axis gyroscope → swing cadence/timing
+---
+
+## IMU Axes (MPU-6050 on wrist)
+
+- **X**: Forward/backward swing direction
+- **Y**: Side-to-side (crossing body = bad form)
+- **Z**: Up/down bounce
+
+---
+
+## Key Technical Notes
+
+- Use `Wire.begin()` without pin arguments on XIAO ESP32-C5 (default pins work; specifying GPIO 6/7 explicitly causes I2C errors)
+- Use `Wire.endTransmission(false)` + read 14 bytes (full burst) for reliable MPU-6050 reads
+- RGB LED wiring: B G R — (common cathode), 330Ω on each pin
+- R and G pins may be physically swapped depending on LED — verify with `setColor()` test
 
 ---
 
 ## Research Backing
 
-- Active arm swing reduces metabolic cost of running by ~5% vs. fixed arms *(2025 study)*
-- One restrained arm increases frontal plane knee/hip loading — direct injury risk link
-- 34% of recreational runners run below the 90% symmetry threshold associated with elevated injury risk
-- Individual asymmetry patterns vary, making personal baseline detection more accurate than population averages
+- Arm swing asymmetry linked to 23% higher metabolic cost (Journal of Biomechanics, 2019)
+- Wearable IMU-based gait analysis validated vs. lab motion capture (Sensors, 2020)
+
+---
+
+## Repo Structure
+
+```
+RUNSY/
+├── RUNSY_week1/
+│   └── RUNSY_week1.ino    ← Week 1: IMU + LED (complete)
+├── RUNSY_README.md
+```
 
 ---
 
 ## Career Context
 
-This project maps directly to:
-- **FAE roles** at sensor suppliers (Bosch Sensortec, STMicro, TDK, Qualcomm) — customers integrate the same MPU-6050/MAX30102 stack
-- **Technical PM roles** at wearables OEMs — demonstrates hardware tradeoff thinking, UX design for body-worn devices, end-to-end system ownership
+Built by Cheng Wei Kao (UCLA EE, 2027) as a portfolio project targeting FAE / Technical PM roles at sensor and wearables companies (Bosch Sensortec, STMicro, TDK, Qualcomm).
 
-Future expansion: add smart glasses IMU as a third sensor node for head motion tracking during running.
-
----
-
-## Repo Structure
-```
-RUNSY/
-├── phase1_firmware/
-│   ├── wristband_left/       # ESP32-C5 firmware — left wristband
-│   └── wristband_right/      # ESP32-C5 firmware — right wristband
-├── phase2_app/               # React Native companion app (coming Phase 2)
-├── hardware/                 # Wiring diagrams, schematics
-├── research/                 # Biomechanics data and references
-└── docs/                     # Build log, photos, demo videos
-```
-
----
-
-## Author
-
-**Cheng Wei (Alex) Kao** — B.S. Electrical Engineering, UCLA '28  
-[LinkedIn](https://linkedin.com/in/your-link-here) · [weiweikao1018@gmail.com](mailto:weiweikao1018@gmail.com)
+GitHub: https://github.com/weiweikao1018/RUNSY
